@@ -4,13 +4,19 @@ Panel para organizar prompts y páginas HTML de landings, heros, secciones y das
 
 ## Agregar un template
 
+**Lo más fácil:** en el panel, botón **+ Agregar** → pega el prompt → **Abrir en GitHub** → **Commit changes**. Nada más.
+
+El panel detecta solo el nombre, el tipo (Landings, Heros, Secciones o Apps y dashboards), la categoría, las tecnologías y los colores, leyendo el texto del prompt (`clasificar.mjs`).
+
+También puedes subir los archivos directamente:
+
 1. Sube el archivo desde GitHub ("Add file → Upload files"):
-   - prompts → carpeta `prompts/`, como `.md`
+   - prompts → carpeta `prompts/`, como `.md` o `.txt`
    - páginas HTML → carpeta `templates/`, como `.html`
 2. El nombre del archivo es su identificador, por ejemplo `velora.md`. Usa minúsculas y guiones.
 3. Listo. GitHub regenera el panel solo en uno o dos minutos.
 
-## Cabecera (opcional pero recomendada)
+## Cabecera (opcional: solo para corregir lo detectado)
 
 Al principio de un prompt `.md`:
 
@@ -31,7 +37,7 @@ Al principio de un `.html`, como comentario:
 <!-- nombre: Anchor AI | tipo: Landings | categoria: Portfolio -->
 ```
 
-Sin cabecera, el template aparece igual: toma el nombre del archivo y queda en "Sin clasificar".
+Sin cabecera, todo se detecta solo. Lo que escribas en la cabecera tiene prioridad.
 
 Tipos que se usan hoy: `Landings`, `Heros`, `Secciones`, `Apps y dashboards`.
 

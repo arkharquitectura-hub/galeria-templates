@@ -5,6 +5,7 @@
 import { readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
 import { dirname, join, basename, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { clasificar } from './clasificar.mjs';
 
 const dir = dirname(fileURLToPath(import.meta.url));
 const listas = new Set(['tags', 'colores']);
@@ -26,7 +27,7 @@ function parsearCampos(texto) {
 
 // Markdown: bloque --- ... --- al inicio. HTML: primer comentario <!-- ... -->.
 function leerCabecera(contenido, ext) {
-  if (ext === '.md') {
+  if (ext !== '.html') {
     const m = contenido.match(/^---\s*\n([\s\S]*?)\n---\s*\n?/);
     return m ? { campos: parsearCampos(m[1]), cuerpo: contenido.slice(m[0].length) } : { campos: {}, cuerpo: contenido };
   }
@@ -37,11 +38,12 @@ function leerCabecera(contenido, ext) {
 const fichas = existsSync(join(dir, 'fichas.json')) ? JSON.parse(readFileSync(join(dir, 'fichas.json'), 'utf8')) : [];
 const porId = new Map(fichas.map((f) => [f.id, { ...f }]));
 
-for (const [carpeta, formato, ext] of [['prompts', 'prompt', '.md'], ['templates', 'codigo', '.html']]) {
+for (const [carpeta, formato, exts] of [['prompts', 'prompt', ['.md', '.txt']], ['templates', 'codigo', ['.html']]]) {
   const ruta = join(dir, carpeta);
   if (!existsSync(ruta)) continue;
-  for (const archivo of readdirSync(ruta).filter((f) => extname(f) === ext).sort()) {
-    const id = basename(archivo, ext);
+  for (const archivo of readdirSync(ruta).filter((f) => exts.includes(extname(f).toLowerCase())).sort()) {
+    const ext = extname(archivo).toLowerCase();
+    const id = basename(archivo, extname(archivo));
     const contenido = readFileSync(join(ruta, archivo), 'utf8');
     const { campos, cuerpo } = leerCabecera(contenido, ext);
     const previa = porId.get(id);
@@ -50,11 +52,10 @@ for (const [carpeta, formato, ext] of [['prompts', 'prompt', '.md'], ['templates
       previa.construido = `${carpeta}/${archivo}`;
       continue;
     }
+    // Prioridad: lo escrito en la cabecera > la ficha de fichas.json > lo adivinado del texto.
     porId.set(id, {
       id,
-      nombre: id,
-      tipo: 'Sin clasificar',
-      categoria: 'Sin categoría',
+      ...clasificar(cuerpo),
       ...previa,
       ...campos,
       formato,

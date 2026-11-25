@@ -50,6 +50,7 @@ a.pill{text-decoration:none}
 .form .row{display:flex;gap:12px;flex-wrap:wrap}
 .form .end{justify-content:flex-end;align-items:center}
 .hint{margin:0;color:var(--dim);font-size:13px}
+details summary{cursor:pointer;color:var(--dim);font-size:13px}
 .hint.ok{color:var(--accent)}
 @media(max-width:640px){.spacer{display:none}input.pill{flex:1}.grid{grid-template-columns:1fr}}
 </style>
@@ -78,13 +79,18 @@ a.pill{text-decoration:none}
   <form id="fAdd" method="dialog">
     <div class="dh"><h2>Agregar template</h2><button class="pill" id="addClose" type="button">Cerrar</button></div>
     <div class="db form">
-      <label>Nombre<input class="pill" name="nombre" required placeholder="VELORA"></label>
-      <div class="row">
-        <label>Tipo<input class="pill" name="tipo" list="lTipos" required placeholder="Landings"></label>
-        <label>Categoría<input class="pill" name="categoria" list="lCats" placeholder="Real Estate"></label>
-      </div>
-      <label>Tags <small>(separados por coma, opcional)</small><input class="pill" name="tags" placeholder="React, video, scroll"></label>
-      <label>Prompt<textarea class="pill" name="texto" rows="10" required placeholder="Pega aquí el prompt completo…"></textarea></label>
+      <label>Prompt<textarea class="pill" name="texto" rows="12" required placeholder="Pega aquí el prompt completo. El nombre, el tipo, la categoría y los colores se detectan solos."></textarea></label>
+      <details>
+        <summary>Opcional: corregir lo que se detecta automáticamente</summary>
+        <div class="form" style="margin-top:12px">
+          <label>Nombre<input class="pill" name="nombre" placeholder="Se detecta del prompt"></label>
+          <div class="row">
+            <label>Tipo<input class="pill" name="tipo" list="lTipos" placeholder="Automático"></label>
+            <label>Categoría<input class="pill" name="categoria" list="lCats" placeholder="Automática"></label>
+          </div>
+          <label>Tags <small>(separados por coma)</small><input class="pill" name="tags" placeholder="Automáticos"></label>
+        </div>
+      </details>
       <p class="hint" id="addHint">Se abrirá GitHub con el archivo listo. Solo toca <b>Commit changes</b>; en 1–2 minutos aparece aquí.</p>
       <div class="row end">
         <a class="pill" id="subirHtml" target="_blank" rel="noopener">¿Es código HTML? Subir archivo</a>
@@ -215,15 +221,16 @@ $('#addClose').addEventListener('click', () => $('#dlgAdd').close());
 $('#fAdd').addEventListener('submit', async (e) => {
   e.preventDefault();
   const f = Object.fromEntries(new FormData(e.target));
-  let id = slug(f.nombre);
+  // Nombre del archivo: el que escribiste, o el que el prompt declara ("called VELORA"), o la fecha.
+  const declarado = f.texto.match(/\b(?:called|named|titled)\s*["“'`*]{0,2}([A-Za-z0-9][\w .&-]{1,30}?)["”'`*]{0,2}(?=[\s,.;:—–)]|$)/i);
+  let id = slug(f.nombre.trim() || (declarado && declarado[1]) || 'prompt-' + new Date().toISOString().slice(0, 16).replace(/[-:T]/g, ''));
   // Si ya existe una entrada con archivo propio con ese nombre, no la pisamos.
   if (items.some((i) => i.id === id && i.existe)) id += '-' + Date.now().toString(36).slice(-4);
 
-  const cabecera = ['---', `nombre: ${f.nombre.trim()}`, `tipo: ${f.tipo.trim()}`];
-  if (f.categoria.trim()) cabecera.push(`categoria: ${f.categoria.trim()}`);
-  if (f.tags.trim()) cabecera.push(`tags: ${f.tags.trim()}`);
-  cabecera.push('---');
-  const contenido = cabecera.join('\n') + '\n' + f.texto.trim() + '\n';
+  // Cabecera solo con lo que corregiste a mano; el resto lo detecta el panel al publicarse.
+  const campos = [['nombre', f.nombre], ['tipo', f.tipo], ['categoria', f.categoria], ['tags', f.tags]]
+    .filter(([, v]) => v.trim()).map(([k, v]) => `${k}: ${v.trim()}`);
+  const contenido = (campos.length ? ['---', ...campos, '---', ''].join('\n') : '') + f.texto.trim() + '\n';
 
   const base = `https://github.com/${REPO}/new/${RAMA}/prompts?filename=${encodeURIComponent(id + '.md')}`;
   const completa = `${base}&value=${encodeURIComponent(contenido)}`;
