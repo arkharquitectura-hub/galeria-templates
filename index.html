@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Galería de templates</title>
+<style>
+:root{--bg:#0b0b0c;--card:#151517;--line:#2a2a2e;--ink:#f2f2f3;--dim:#8b8b93;--accent:#3ddc84}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif}
+.wrap{max-width:1560px;margin:0 auto;padding:24px 16px 64px}
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.pill{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:9px 16px;font:inherit;font-weight:600;cursor:pointer}
+.pill small{color:var(--dim);font-weight:500;margin-left:4px}
+.pill.on{border-color:var(--accent);color:var(--accent);background:#0f2a1b}
+.pill.on small{color:var(--accent)}
+.spacer{flex:1}
+select.pill{appearance:none;padding-right:30px;background-image:linear-gradient(45deg,transparent 50%,var(--dim) 50%),linear-gradient(135deg,var(--dim) 50%,transparent 50%);background-position:calc(100% - 17px) 55%,calc(100% - 12px) 55%;background-size:5px 5px;background-repeat:no-repeat}
+input.pill{font-weight:500;min-width:180px}
+.count{margin:22px 0 16px;color:var(--dim)}.count b{color:var(--ink)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:20px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;display:flex;flex-direction:column}
+.thumb{position:relative;aspect-ratio:16/10;overflow:hidden;cursor:pointer;background:#000}
+.art{position:absolute;inset:0;display:flex;align-items:flex-end;padding:16px;font-size:30px;font-weight:700;letter-spacing:-.02em;line-height:1}
+.art em{position:absolute;top:12px;left:12px;font:600 10px/1 system-ui;letter-spacing:.12em;text-transform:uppercase;padding:5px 8px;border-radius:999px;background:rgba(0,0,0,.55);font-style:normal}
+.frame{position:absolute;top:0;left:0;width:1440px;height:900px;border:0;transform-origin:0 0;pointer-events:none}
+.play{position:absolute;right:12px;bottom:12px;width:38px;height:38px;border-radius:50%;border:1px solid rgba(255,255,255,.6);background:rgba(0,0,0,.45);color:#fff;display:grid;place-items:center;font-size:13px}
+.info{display:flex;align-items:center;gap:10px;padding:14px 16px 16px}
+.info div{flex:1;min-width:0}
+.info h3{margin:0 0 4px;font-size:18px}
+.info p{margin:0;font:12px/1 ui-monospace,monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+.like{border:1px solid var(--line);background:none;color:var(--ink);border-radius:999px;padding:8px 14px;font:inherit;cursor:pointer}
+.like.on{color:#ff6b8a;border-color:#ff6b8a}
+.empty{color:var(--dim);padding:40px 0;text-align:center}
+dialog{width:min(1100px,94vw);max-height:90vh;border:1px solid var(--line);border-radius:16px;background:var(--card);color:var(--ink);padding:0}
+dialog::backdrop{background:rgba(0,0,0,.7)}
+.dh{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:16px 18px;border-bottom:1px solid var(--line)}
+.dh h2{margin:0;font-size:20px;flex:1}
+.db{padding:16px 18px;overflow:auto;max-height:calc(90vh - 70px)}
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px}
+.tags span{font-size:12px;color:var(--dim);border:1px solid var(--line);border-radius:999px;padding:3px 9px}
+pre{white-space:pre-wrap;word-break:break-word;font:12.5px/1.5 ui-monospace,monospace;background:#0b0b0c;border:1px solid var(--line);border-radius:10px;padding:14px;margin:0}
+.warn{color:#f5c36b}
+a.pill{text-decoration:none}
+@media(max-width:640px){.spacer{display:none}input.pill{flex:1}.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="bar" id="tipos"></div>
+  <div class="bar" style="margin-top:10px">
+    <input class="pill" id="q" type="search" placeholder="Buscar…">
+    <div class="spacer"></div>
+    <select class="pill" id="cat"></select>
+    <select class="pill" id="orden"><option value="dest">Destacados</option><option value="az">A–Z</option></select>
+    <button class="pill" id="soloLikes" type="button">♡ Mis likes</button>
+  </div>
+  <div class="count"><b id="n">0</b> templates</div>
+  <div class="grid" id="grid"></div>
+</div>
+
+<dialog id="dlg">
+  <div class="dh"><h2 id="dTitle"></h2><span id="dActions" style="display:flex;gap:8px;flex-wrap:wrap"></span><button class="pill" id="dClose" type="button">Cerrar</button></div>
+  <div class="db" id="dBody"></div>
+</dialog>
+
+<script src="datos.js"></script>
+<script>
+const items = window.GALERIA || [];
+const state = { tipo: 'Todos', cat: '', q: '', orden: 'dest', soloLikes: false };
+let likes = {};
+try { likes = JSON.parse(localStorage.getItem('galeria-likes') || '{}'); } catch {}
+const saveLikes = () => { try { localStorage.setItem('galeria-likes', JSON.stringify(likes)); } catch {} };
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+// Archivo que se puede previsualizar: el template de código, o el prompt ya construido.
+const previewSrc = (it) => it.formato === 'codigo' ? (it.existe ? it.archivo : null) : (it.construidoExiste ? it.construido : null);
+
+function renderTipos() {
+  const tipos = ['Todos', ...new Set(items.map((i) => i.tipo))];
+  $('#tipos').innerHTML = tipos.map((t) => {
+    const n = t === 'Todos' ? items.length : items.filter((i) => i.tipo === t).length;
+    return `<button class="pill ${t === state.tipo ? 'on' : ''}" data-t="${esc(t)}">${esc(t)}<small>${n}</small></button>`;
+  }).join('');
+  const cats = [...new Set(items.map((i) => i.categoria))].sort();
+  $('#cat').innerHTML = '<option value="">Todas las categorías</option>' + cats.map((c) => `<option>${esc(c)}</option>`).join('');
+  $('#cat').value = state.cat;
+}
+
+function filtrados() {
+  const q = state.q.toLowerCase();
+  let out = items.filter((i) =>
+    (state.tipo === 'Todos' || i.tipo === state.tipo) &&
+    (!state.cat || i.categoria === state.cat) &&
+    (!state.soloLikes || likes[i.id]) &&
+    (!q || [i.nombre, i.categoria, i.nota, ...(i.tags || [])].join(' ').toLowerCase().includes(q)));
+  out.sort(state.orden === 'az' ? (a, b) => a.nombre.localeCompare(b.nombre) : (a, b) => (b.destacado - a.destacado) || ((likes[b.id] || 0) - (likes[a.id] || 0)));
+  return out;
+}
+
+function renderGrid() {
+  const list = filtrados();
+  $('#n').textContent = list.length;
+  $('#grid').innerHTML = list.length ? list.map((it) => {
+    const [c1, c2, c3] = it.colores || ['#111', '#333', '#fff'];
+    const etiqueta = it.formato === 'prompt' ? (it.construidoExiste ? 'Construido' : 'Prompt') : (it.existe ? 'Código' : 'Falta archivo');
+    return `<article class="card" data-id="${it.id}">
+      <div class="thumb" data-open="${it.id}">
+        <div class="art" style="background:radial-gradient(120% 90% at 70% 20%,${c2},${c1} 70%);color:${c3}"><em>${etiqueta}</em>${esc(it.nombre)}</div>
+        ${previewSrc(it) ? '<span class="play">▶</span>' : ''}
+      </div>
+      <div class="info"><div><h3>${esc(it.nombre)}</h3><p>${esc(it.categoria)}</p></div>
+        <button class="like ${likes[it.id] ? 'on' : ''}" data-like="${it.id}">${likes[it.id] ? '♥' : '♡'}</button></div>
+    </article>`;
+  }).join('') : '<p class="empty">No hay templates con estos filtros.</p>';
+}
+
+// Preview en vivo: se monta el iframe solo al pasar el mouse, para no cargar todas las páginas a la vez.
+document.addEventListener('pointerover', (e) => {
+  const th = e.target.closest('.thumb');
+  if (!th || th.querySelector('iframe')) return;
+  const it = items.find((i) => i.id === th.dataset.open);
+  const src = it && previewSrc(it);
+  if (!src) return;
+  const f = document.createElement('iframe');
+  f.className = 'frame'; f.src = src; f.loading = 'lazy'; f.setAttribute('tabindex', '-1');
+  f.style.transform = `scale(${th.clientWidth / 1440})`;
+  th.append(f);
+});
+document.addEventListener('pointerout', (e) => {
+  const th = e.target.closest('.thumb');
+  if (th && !th.contains(e.relatedTarget)) th.querySelector('iframe')?.remove();
+});
+
+function abrir(it) {
+  $('#dTitle').textContent = it.nombre;
+  const src = previewSrc(it);
+  $('#dActions').innerHTML = (src ? `<a class="pill" href="${src}" target="_blank" rel="noopener">Abrir a pantalla completa</a>` : '') +
+    (it.texto ? '<button class="pill" id="copiar" type="button">Copiar prompt</button>' : '');
+  const tags = `<div class="tags">${[it.tipo, it.categoria, ...(it.tags || [])].map((t) => `<span>${esc(t)}</span>`).join('')}</div>`;
+  let cuerpo = `<p>${esc(it.nota || '')}</p>`;
+  if (it.texto) cuerpo += `<pre>${esc(it.texto)}</pre>`;
+  else if (!it.existe) cuerpo += `<p class="warn">Falta el archivo <code>${esc(it.archivo)}</code>. Súbelo a esa ruta y corre <code>node galeria/build.mjs</code>.</p>`;
+  else if (src) cuerpo += `<iframe src="${src}" style="width:100%;aspect-ratio:16/10;border:0;border-radius:10px;background:#000"></iframe>`;
+  $('#dBody').innerHTML = tags + cuerpo;
+  $('#copiar')?.addEventListener('click', async (e) => {
+    try { await navigator.clipboard.writeText(it.texto); e.target.textContent = 'Copiado ✓'; } catch { e.target.textContent = 'No se pudo copiar'; }
+  });
+  $('#dlg').showModal();
+}
+
+document.addEventListener('click', (e) => {
+  const t = e.target.closest('[data-t]'); if (t) { state.tipo = t.dataset.t; renderTipos(); renderGrid(); return; }
+  const l = e.target.closest('[data-like]'); if (l) { const id = l.dataset.like; likes[id] ? delete likes[id] : (likes[id] = 1); saveLikes(); renderGrid(); return; }
+  const o = e.target.closest('[data-open]'); if (o) abrir(items.find((i) => i.id === o.dataset.open));
+});
+$('#q').addEventListener('input', (e) => { state.q = e.target.value; renderGrid(); });
+$('#cat').addEventListener('change', (e) => { state.cat = e.target.value; renderGrid(); });
+$('#orden').addEventListener('change', (e) => { state.orden = e.target.value; renderGrid(); });
+$('#soloLikes').addEventListener('click', (e) => { state.soloLikes = !state.soloLikes; e.target.classList.toggle('on', state.soloLikes); renderGrid(); });
+$('#dClose').addEventListener('click', () => { $('#dlg').close(); $('#dBody').innerHTML = ''; });
+$('#dlg').addEventListener('close', () => { $('#dBody').innerHTML = ''; });
+
+renderTipos(); renderGrid();
+</script>
+</body>
+</html>
