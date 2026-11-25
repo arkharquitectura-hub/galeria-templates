@@ -52,20 +52,67 @@ a.pill{text-decoration:none}
 .hint{margin:0;color:var(--dim);font-size:13px}
 details summary{cursor:pointer;color:var(--dim);font-size:13px}
 .hint.ok{color:var(--accent)}
-@media(max-width:640px){.spacer{display:none}input.pill{flex:1}.grid{grid-template-columns:1fr}}
+.filtros{margin-top:10px}
+.ctrls{display:flex;gap:10px;flex-wrap:wrap}
+.play{cursor:pointer;z-index:2}
+
+/* ===== Celular ===== */
+@media(max-width:640px){
+  .wrap{padding:0 12px 96px}
+  /* Filtros fijos arriba y compactos */
+  .top{position:sticky;top:0;z-index:5;background:var(--bg);margin:0 -12px;padding:10px 12px 10px;border-bottom:1px solid var(--line)}
+  .top .bar{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .top .bar::-webkit-scrollbar{display:none}
+  .top .pill{flex:0 0 auto;padding:7px 13px;font-size:13px;white-space:nowrap}
+  .top select.pill{padding-right:32px}
+  .filtros{flex-wrap:wrap!important;overflow:visible!important;margin-top:8px;gap:8px}
+  .filtros input.pill{flex:1 1 100%;min-width:0;font-size:16px}
+  .spacer{display:none}
+  .ctrls{flex:1 1 100%;flex-wrap:nowrap;overflow-x:auto;gap:8px;scrollbar-width:none}
+  .ctrls::-webkit-scrollbar{display:none}
+  /* "+ Agregar" pasa a ser un botón flotante abajo a la derecha */
+  #btnAgregar{position:fixed;right:16px;bottom:calc(18px + env(safe-area-inset-bottom));z-index:20;width:56px;height:56px;padding:0;border-radius:50%;font-size:28px;line-height:1;display:grid;place-items:center;background:var(--accent);color:#04140b;border:0;box-shadow:0 10px 30px rgba(0,0,0,.5)}
+  #btnAgregar .txt{display:none}
+  /* Dos tarjetas por fila */
+  .count{margin:14px 0 10px;font-size:13px}
+  .grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .card{border-radius:12px}
+  .thumb{aspect-ratio:1/1}
+  .art{padding:10px;font-size:17px}
+  .art em{top:8px;left:8px;font-size:8.5px;padding:4px 6px}
+  .play{right:8px;bottom:8px;width:32px;height:32px;font-size:11px}
+  .info{padding:9px 10px 10px;gap:6px}
+  .info h3{display:none}
+  .info p{font-size:10px;letter-spacing:.08em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .like{padding:6px 10px;font-size:13px}
+  /* Ventanas a pantalla completa */
+  dialog{width:100vw;max-width:100vw;height:100dvh;max-height:100dvh;margin:0;border-radius:0;border:0}
+  .dh{padding:12px 14px;position:sticky;top:0;background:var(--card);z-index:1}
+  .dh h2{font-size:17px}
+  .db{max-height:none;padding:14px}
+  .form .end{flex-direction:column-reverse;align-items:stretch}
+  .form .end .pill{text-align:center}
+  .form textarea.pill{font-size:16px}
+  .db iframe{aspect-ratio:9/16!important}
+}
+@media(max-width:340px){.grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <div class="bar" id="tipos"></div>
-  <div class="bar" style="margin-top:10px">
-    <input class="pill" id="q" type="search" placeholder="Buscar…">
-    <div class="spacer"></div>
-    <select class="pill" id="cat"></select>
-    <select class="pill" id="orden"><option value="dest">Destacados</option><option value="az">A–Z</option></select>
-    <button class="pill" id="soloLikes" type="button">♡ Mis likes</button>
-    <button class="pill on" id="btnAgregar" type="button">+ Agregar</button>
-  </div>
+  <header class="top">
+    <div class="bar" id="tipos"></div>
+    <div class="bar filtros">
+      <input class="pill" id="q" type="search" placeholder="Buscar…">
+      <div class="spacer"></div>
+      <div class="ctrls">
+        <select class="pill" id="cat"></select>
+        <select class="pill" id="orden"><option value="dest">Destacados</option><option value="az">A–Z</option></select>
+        <button class="pill" id="soloLikes" type="button">♡ Mis likes</button>
+      </div>
+      <button class="pill on" id="btnAgregar" type="button" aria-label="Agregar template"><span class="mas">+</span><span class="txt"> Agregar</span></button>
+    </div>
+  </header>
   <div class="count"><b id="n">0</b> templates</div>
   <div class="grid" id="grid"></div>
 </div>
@@ -154,21 +201,46 @@ function renderGrid() {
 }
 
 // Preview en vivo: se monta el iframe solo al pasar el mouse, para no cargar todas las páginas a la vez.
-document.addEventListener('pointerover', (e) => {
-  const th = e.target.closest('.thumb');
-  if (!th || th.querySelector('iframe')) return;
+// En celular se activa tocando ▶ (no hay "pasar el mouse").
+function montarPreview(th) {
+  if (th.querySelector('iframe')) return false;
   const it = items.find((i) => i.id === th.dataset.open);
   const src = it && previewSrc(it);
-  if (!src) return;
+  if (!src) return false;
+  // Tarjeta vertical (celular): la página se muestra como en un teléfono; horizontal: como en escritorio.
+  const vertical = th.clientHeight > th.clientWidth;
+  const w = vertical ? 390 : 1440;
   const f = document.createElement('iframe');
   f.className = 'frame'; f.src = src; f.loading = 'lazy'; f.setAttribute('tabindex', '-1');
-  f.style.transform = `scale(${th.clientWidth / 1440})`;
+  f.style.width = w + 'px';
+  f.style.height = Math.round(w * th.clientHeight / th.clientWidth) + 'px';
+  f.style.transform = `scale(${th.clientWidth / w})`;
   th.append(f);
+  th.querySelector('.play')?.replaceChildren('■');
+  return true;
+}
+function quitarPreview(th) {
+  th.querySelector('iframe')?.remove();
+  th.querySelector('.play')?.replaceChildren('▶');
+}
+document.addEventListener('pointerover', (e) => {
+  if (e.pointerType !== 'mouse') return;
+  const th = e.target.closest('.thumb');
+  if (th) montarPreview(th);
 });
 document.addEventListener('pointerout', (e) => {
+  if (e.pointerType !== 'mouse') return;
   const th = e.target.closest('.thumb');
-  if (th && !th.contains(e.relatedTarget)) th.querySelector('iframe')?.remove();
+  if (th && !th.contains(e.relatedTarget)) quitarPreview(th);
 });
+// Tocar ▶ prende o apaga la preview dentro de la tarjeta, sin abrir el detalle.
+document.addEventListener('click', (e) => {
+  const play = e.target.closest('.play');
+  if (!play) return;
+  e.stopImmediatePropagation();
+  const th = play.closest('.thumb');
+  if (!montarPreview(th)) quitarPreview(th);
+}, true);
 
 function abrir(it) {
   $('#dTitle').textContent = it.nombre;
