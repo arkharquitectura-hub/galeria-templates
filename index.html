@@ -42,6 +42,15 @@ dialog::backdrop{background:rgba(0,0,0,.7)}
 pre{white-space:pre-wrap;word-break:break-word;font:12.5px/1.5 ui-monospace,monospace;background:#0b0b0c;border:1px solid var(--line);border-radius:10px;padding:14px;margin:0}
 .warn{color:#f5c36b}
 a.pill{text-decoration:none}
+.form{display:flex;flex-direction:column;gap:14px}
+.form label{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--dim);flex:1}
+.form label small{font-size:11px}
+.form input.pill,.form textarea.pill{width:100%;font-weight:400;color:var(--ink);min-width:0}
+.form textarea.pill{border-radius:12px;resize:vertical;font:12.5px/1.5 ui-monospace,monospace}
+.form .row{display:flex;gap:12px;flex-wrap:wrap}
+.form .end{justify-content:flex-end;align-items:center}
+.hint{margin:0;color:var(--dim);font-size:13px}
+.hint.ok{color:var(--accent)}
 @media(max-width:640px){.spacer{display:none}input.pill{flex:1}.grid{grid-template-columns:1fr}}
 </style>
 </head>
@@ -54,6 +63,7 @@ a.pill{text-decoration:none}
     <select class="pill" id="cat"></select>
     <select class="pill" id="orden"><option value="dest">Destacados</option><option value="az">A–Z</option></select>
     <button class="pill" id="soloLikes" type="button">♡ Mis likes</button>
+    <button class="pill on" id="btnAgregar" type="button">+ Agregar</button>
   </div>
   <div class="count"><b id="n">0</b> templates</div>
   <div class="grid" id="grid"></div>
@@ -62,6 +72,27 @@ a.pill{text-decoration:none}
 <dialog id="dlg">
   <div class="dh"><h2 id="dTitle"></h2><span id="dActions" style="display:flex;gap:8px;flex-wrap:wrap"></span><button class="pill" id="dClose" type="button">Cerrar</button></div>
   <div class="db" id="dBody"></div>
+</dialog>
+
+<dialog id="dlgAdd">
+  <form id="fAdd" method="dialog">
+    <div class="dh"><h2>Agregar template</h2><button class="pill" id="addClose" type="button">Cerrar</button></div>
+    <div class="db form">
+      <label>Nombre<input class="pill" name="nombre" required placeholder="VELORA"></label>
+      <div class="row">
+        <label>Tipo<input class="pill" name="tipo" list="lTipos" required placeholder="Landings"></label>
+        <label>Categoría<input class="pill" name="categoria" list="lCats" placeholder="Real Estate"></label>
+      </div>
+      <label>Tags <small>(separados por coma, opcional)</small><input class="pill" name="tags" placeholder="React, video, scroll"></label>
+      <label>Prompt<textarea class="pill" name="texto" rows="10" required placeholder="Pega aquí el prompt completo…"></textarea></label>
+      <p class="hint" id="addHint">Se abrirá GitHub con el archivo listo. Solo toca <b>Commit changes</b>; en 1–2 minutos aparece aquí.</p>
+      <div class="row end">
+        <a class="pill" id="subirHtml" target="_blank" rel="noopener">¿Es código HTML? Subir archivo</a>
+        <button class="pill on" type="submit">Abrir en GitHub →</button>
+      </div>
+    </div>
+  </form>
+  <datalist id="lTipos"></datalist><datalist id="lCats"></datalist>
 </dialog>
 
 <script src="datos.js"></script>
@@ -161,6 +192,61 @@ $('#orden').addEventListener('change', (e) => { state.orden = e.target.value; re
 $('#soloLikes').addEventListener('click', (e) => { state.soloLikes = !state.soloLikes; e.target.classList.toggle('on', state.soloLikes); renderGrid(); });
 $('#dClose').addEventListener('click', () => { $('#dlg').close(); $('#dBody').innerHTML = ''; });
 $('#dlg').addEventListener('close', () => { $('#dBody').innerHTML = ''; });
+
+// ===== Agregar: arma el archivo y abre GitHub con todo prellenado =====
+const REPO = 'arkharquitectura-hub/galeria-templates';
+const RAMA = 'main';
+const MAX_URL = 7000; // por encima de esto el navegador o GitHub pueden cortar la URL
+
+const slug = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+  .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'template';
+
+$('#subirHtml').href = `https://github.com/${REPO}/upload/${RAMA}/templates`;
+
+$('#btnAgregar').addEventListener('click', () => {
+  $('#lTipos').innerHTML = [...new Set(['Landings', 'Heros', 'Secciones', 'Apps y dashboards', ...items.map((i) => i.tipo)])].map((t) => `<option value="${esc(t)}">`).join('');
+  $('#lCats').innerHTML = [...new Set(items.map((i) => i.categoria))].map((c) => `<option value="${esc(c)}">`).join('');
+  $('#addHint').className = 'hint';
+  $('#addHint').innerHTML = 'Se abrirá GitHub con el archivo listo. Solo toca <b>Commit changes</b>; en 1–2 minutos aparece aquí.';
+  $('#dlgAdd').showModal();
+});
+$('#addClose').addEventListener('click', () => $('#dlgAdd').close());
+
+$('#fAdd').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const f = Object.fromEntries(new FormData(e.target));
+  let id = slug(f.nombre);
+  // Si ya existe una entrada con archivo propio con ese nombre, no la pisamos.
+  if (items.some((i) => i.id === id && i.existe)) id += '-' + Date.now().toString(36).slice(-4);
+
+  const cabecera = ['---', `nombre: ${f.nombre.trim()}`, `tipo: ${f.tipo.trim()}`];
+  if (f.categoria.trim()) cabecera.push(`categoria: ${f.categoria.trim()}`);
+  if (f.tags.trim()) cabecera.push(`tags: ${f.tags.trim()}`);
+  cabecera.push('---');
+  const contenido = cabecera.join('\n') + '\n' + f.texto.trim() + '\n';
+
+  const base = `https://github.com/${REPO}/new/${RAMA}/prompts?filename=${encodeURIComponent(id + '.md')}`;
+  const completa = `${base}&value=${encodeURIComponent(contenido)}`;
+  const hint = $('#addHint');
+
+  if (completa.length <= MAX_URL) {
+    window.open(completa, '_blank', 'noopener');
+    hint.className = 'hint ok';
+    hint.innerHTML = `Listo: en la pestaña de GitHub toca <b>Commit changes</b>. Archivo: <code>prompts/${esc(id)}.md</code>`;
+    return;
+  }
+  // Prompt largo: va por el portapapeles y en GitHub solo se pega.
+  try {
+    await navigator.clipboard.writeText(contenido);
+    window.open(base, '_blank', 'noopener');
+    hint.className = 'hint ok';
+    hint.innerHTML = 'El prompt es largo, así que lo <b>copié al portapapeles</b>. En GitHub haz clic en el área de texto, pega (Ctrl+V / Cmd+V) y toca <b>Commit changes</b>.';
+  } catch {
+    hint.className = 'hint';
+    hint.innerHTML = 'No pude copiar al portapapeles. Copia el texto a mano y pégalo en GitHub.';
+    window.open(base, '_blank', 'noopener');
+  }
+});
 
 renderTipos(); renderGrid();
 </script>
